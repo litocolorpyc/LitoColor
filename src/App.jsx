@@ -1,112 +1,112 @@
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { USUARIOS, genCod, todayISO } from './lib/data'
+import {
+  getUsuarios, getCotizaciones, getOPs, getRegistros, getConsumos, getClientes,
+  saveCotizacion, saveOP, updateOP as updateOPdb, saveRegistro, saveConsumo
+} from './lib/supabase'
+import { genCod, todayISO } from './lib/data'
 import Login from './pages/Login'
-
-// ── Vistas por rol ──
-import ShellGerente   from './pages/gerente/Shell'
-import ShellJP        from './pages/jp/Shell'
-import ShellOperario  from './pages/operario/Shell'
+import ShellGerente  from './pages/gerente/Shell'
+import ShellJP       from './pages/jp/Shell'
+import ShellOperario from './pages/operario/Shell'
 
 export const AppCtx = createContext(null)
 export const useApp = () => useContext(AppCtx)
 
-// ── Demo data inicial ────────────────────────────────────────────────────────
-const DEMO_COTIZACIONES = [
-  {
-    id:'COT-241001', fecha:'2026-06-01', clienteId:1, estado:'aprobada',
-    items:[{ productoNombre:'Tarjeta de Presentación', cantidad:1000, precioUnitario:220, subtotal:220000 }],
-    total:220000, margen:35, validezDias:30,
-    notas:'Full color, laminado brillante ambas caras',
-  },
-  {
-    id:'COT-241002', fecha:'2026-06-05', clienteId:2, estado:'cotizacion',
-    items:[{ productoNombre:'Brochure Triptico', cantidad:500, precioUnitario:320, subtotal:160000 }],
-    total:160000, margen:38, validezDias:30,
-    notas:'Papel mate, sin laminado',
-  },
-  {
-    id:'COT-241003', fecha:'2026-06-08', clienteId:3, estado:'aprobada',
-    items:[{ productoNombre:'Catálogo / Revista', cantidad:200, precioUnitario:950, subtotal:190000 }],
-    total:190000, margen:42, validezDias:15,
-    notas:'Portada propalcote 300, interior bond 90',
-  },
-]
-
-const DEMO_OPS = [
-  {
-    id:'OP-2406-001', cotizacionId:'COT-241001', clienteId:1,
-    descripcion:'Tarjetas de presentación Grupo Éxito',
-    estado:'en_produccion', prioridad:'alta',
-    fechaEntrega:'2026-06-12',
-    maquinas:['P1','G1'],
-    materialCod:'Cote-300-C1-1',
-    cantidad:1000,
-    progreso:65,
-    tareas:[],
-    costoEstimado:142000,
-    costoReal:0,
-  },
-  {
-    id:'OP-2406-002', cotizacionId:'COT-241003', clienteId:3,
-    descripcion:'Catálogo Bancolombia Q2 2026',
-    estado:'aprobada', prioridad:'media',
-    fechaEntrega:'2026-06-18',
-    maquinas:['P1','G1','Ar'],
-    materialCod:'Cote-115-C2-1',
-    cantidad:200,
-    progreso:0,
-    tareas:[],
-    costoEstimado:113000,
-    costoReal:0,
-  },
-]
-
 export default function App() {
-  const [usuario,       setUsuario]       = useState(null)
-  const [cotizaciones,  setCotizaciones]  = useState(DEMO_COTIZACIONES)
-  const [ops,           setOps]           = useState(DEMO_OPS)
-  const [registros,     setRegistros]     = useState([])
-  const [consumos,      setConsumos]      = useState([])
+  const [usuario,      setUsuario]      = useState(null)
+  const [usuarios,     setUsuarios]     = useState([])
+  const [cotizaciones, setCotizaciones] = useState([])
+  const [ops,          setOps]          = useState([])
+  const [registros,    setRegistros]    = useState([])
+  const [consumos,     setConsumos]     = useState([])
+  const [clientes,     setClientes]     = useState([])
+  const [cargando,     setCargando]     = useState(true)
+
+  // Cargar datos al iniciar
+  useEffect(() => {
+    async function cargar() {
+      const [u, cots, opsData, regs, cons, clis] = await Promise.all([
+        getUsuarios(),
+        getCotizaciones(),
+        getOPs(),
+        getRegistros(todayISO()),
+        getConsumos(todayISO()),
+        getClientes(),
+      ])
+      setUsuarios(u)
+      setCotizaciones(cots)
+      setOps(opsData)
+      setRegistros(regs)
+      setConsumos(cons)
+      setClientes(clis)
+      setCargando(false)
+    }
+    cargar()
+  }, [])
 
   function login(pin) {
-    const u = USUARIOS.find(u => u.pin === pin && u.activo)
+    const u = usuarios.find(u => u.pin === pin && u.activo)
     if (u) { setUsuario(u); return true }
     return false
   }
-  function logout() { setUsuario(null); setRegistros([]); setConsumos([]) }
+  function logout() { setUsuario(null) }
 
-  // Cotizaciones
-  function addCotizacion(c) { setCotizaciones(p => [{ ...c, id: genCod('COT'), fecha: todayISO(), estado:'cotizacion' }, ...p]) }
-  function updateCotizacion(id, changes) { setCotizaciones(p => p.map(c => c.id===id ? {...c,...changes} : c)) }
+  async function addCotizacion(c) {
+    const nueva = { ...c, id: genCod('COT'), fecha: todayISO(), estado: 'cotizacion' }
+    const guardada = await saveCotizacion(nueva)
+    if (guardada) setCotizaciones(p => [guardada, ...p])
+  }
 
-  // OPs
-  function addOP(op) { setOps(p => [{ ...op, id: genCod('OP'), tareas:[], costoReal:0, progreso:0 }, ...p]) }
-  function updateOP(id, changes) { setOps(p => p.map(o => o.id===id ? {...o,...changes} : o)) }
+  async function updateCotizacion(id, changes) {
+    await saveCotizacion({ id, ...changes })
+    setCotizaciones(p => p.map(c => c.id === id ? { ...c, ...changes } : c))
+  }
 
-  // Registros (tiempo operarios)
-  function addRegistro(r) {
-    const nuevo = { ...r, id: Date.now(), fecha: todayISO(), operarioId: usuario?.id, operarioNombre: usuario?.nombre }
-    setRegistros(p => [nuevo, ...p])
-    // Actualizar costo real de la OP
-    if (r.opId && r.durMin) {
-      const op = ops.find(o => o.id === r.opId)
-      if (op) {
-        const costoHH = (usuario?.valorHora || 0) * (r.durMin / 60)
-        updateOP(r.opId, { costoReal: (op.costoReal || 0) + costoHH })
+  async function addOP(op) {
+    const nueva = { ...op, id: genCod('OP'), costo_real: 0, progreso: 0 }
+    const guardada = await saveOP(nueva)
+    if (guardada) setOps(p => [guardada, ...p])
+  }
+
+  async function updateOPLocal(id, changes) {
+    await updateOPdb(id, changes)
+    setOps(p => p.map(o => o.id === id ? { ...o, ...changes } : o))
+  }
+
+  async function addRegistro(r) {
+    const nuevo = {
+      ...r,
+      fecha: todayISO(),
+      operario_id: usuario?.id,
+      operario_nombre: usuario?.nombre,
+      hora_inicio: r.inicio || null,
+      hora_fin: r.fin || null,
+      dur_min: r.durMin || null,
+      op_id: r.opId || null,
+    }
+    const guardado = await saveRegistro(nuevo)
+    if (guardado) {
+      setRegistros(p => [guardado, ...p])
+      // Actualizar costo real en OP
+      if (r.opId && r.durMin) {
+        const op = ops.find(o => o.id === r.opId)
+        if (op) {
+          const costoHH = (usuario?.valor_hora || 0) * (r.durMin / 60)
+          await updateOPLocal(r.opId, { costo_real: (op.costo_real || 0) + costoHH })
+        }
       }
     }
   }
-  function delRegistro(id) { setRegistros(p => p.filter(r => r.id !== id)) }
 
-  function addConsumo(c) { setConsumos(p => [{ ...c, id: Date.now(), fecha: todayISO() }, ...p]) }
+  function delRegistro(id) {
+    setRegistros(p => p.filter(r => r.id !== id))
+  }
 
-  const ctx = {
-    usuario, login, logout,
-    cotizaciones, addCotizacion, updateCotizacion,
-    ops, addOP, updateOP,
-    registros, addRegistro, delRegistro,
-    consumos, addConsumo,
+  async function addConsumo(c) {
+    const nuevo = { ...c, fecha: todayISO(), operario_id: usuario?.id }
+    const guardado = await saveConsumo(nuevo)
+    if (guardado) setConsumos(p => [guardado, ...p])
   }
 
   function RoleRouter() {
@@ -114,6 +114,26 @@ export default function App() {
     if (usuario.rol === 'gerente')  return <Navigate to="/gerente"  replace />
     if (usuario.rol === 'jp')       return <Navigate to="/jp"       replace />
     return <Navigate to="/operario" replace />
+  }
+
+  if (cargando) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100dvh', gap:16, background:'#f5f5f3' }}>
+        <div style={{ width:48, height:48, background:'#1D9E75', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <i className="ti ti-printer" style={{ fontSize:24, color:'#fff' }} />
+        </div>
+        <div style={{ fontSize:14, color:'#888' }}>Cargando Litocolor...</div>
+      </div>
+    )
+  }
+
+  const ctx = {
+    usuario, login, logout,
+    usuarios, clientes,
+    cotizaciones, addCotizacion, updateCotizacion,
+    ops, addOP, updateOP: updateOPLocal,
+    registros, addRegistro, delRegistro,
+    consumos, addConsumo,
   }
 
   return (
