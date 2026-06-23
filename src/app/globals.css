@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* =========================================================
+   LitoColor — Identidad: "marcas de registro" de imprenta.
+   Fondo tinta/carbón para la estructura, superficies tipo
+   papel para el contenido, y un acento magenta de registro.
+   Tipografía: Inter (texto) + IBM Plex Mono (códigos: OPP,
+   actividades, valores) para que los datos "se sientan" como
+   códigos de planta, no como prosa.
+   ========================================================= */
+
+:root {
+  --ink: #1c1b19;
+  --ink-soft: #2a2824;
+  --paper: #faf9f6;
+  --surface: #ffffff;
+  --line: #e4e1da;
+  --text: #1c1b19;
+  --text-muted: #716d64;
+  --accent: #d6336c;
+  --accent-cyan: #0f8b9e;
+  --accent-yellow: #e0a800;
+  --accent-soft: #f8e4ec;
+  --danger: #b3261e;
+  --ok: #1f7a4d;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-plex-mono);
+}
+
+body {
+  background: var(--paper);
+  color: var(--text);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+.registro-bar {
+  display: flex;
+  height: 4px;
+  width: 100%;
+}
+.registro-bar span { flex: 1; }
+.registro-bar span:nth-child(1) { background: #0f8b9e; }
+.registro-bar span:nth-child(2) { background: #d6336c; }
+.registro-bar span:nth-child(3) { background: #e0a800; }
+.registro-bar span:nth-child(4) { background: #1c1b19; }
+
+.codigo {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: 0.01em;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 8px;
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+.btn-primary:hover { background: var(--ink-soft); }
+.btn-primary:disabled { opacity: 0.5; }
+
+.btn-accent {
+  background: var(--accent);
+  color: white;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.btn-accent:hover { background: #b82a5d; }
+
+.input-field {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
+}
+.input-field:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
