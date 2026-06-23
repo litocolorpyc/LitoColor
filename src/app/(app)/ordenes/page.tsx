@@ -11,12 +11,16 @@ export default async function OrdenesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold">Órdenes de producción</h1>
         <Link href="/ordenes/nueva" className="btn-accent px-4 py-2">
           + Nueva orden
         </Link>
       </div>
+      <p className="text-text-muted mb-6 text-sm">
+        Click en el número de una orden para ver su ficha técnica, el avance (horas y costo
+        acumulado por área) y para cerrarla cuando termine.
+      </p>
 
       <div className="card overflow-hidden">
         <table className="w-full text-sm">

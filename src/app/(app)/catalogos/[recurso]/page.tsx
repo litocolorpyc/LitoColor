@@ -81,6 +81,8 @@ export default async function CatalogoRecursoPage({
                   <td key={c.key} className="px-3 py-2">
                     {c.type === "fk"
                       ? opcionesFk[c.key]?.find((o) => o.id === fila[c.key])?.[c.fkEtiqueta ?? "nombre"] as string ?? "—"
+                      : c.type === "boolean"
+                      ? (fila[c.key] ? "Sí" : "No")
                       : (fila[c.key] as string) ?? "—"}
                   </td>
                 ))}
@@ -154,6 +156,15 @@ export default async function CatalogoRecursoPage({
                     </option>
                   ))}
                 </select>
+              ) : campo.type === "boolean" ? (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name={campo.key}
+                    defaultChecked={Boolean(filaEnEdicion?.[campo.key])}
+                  />
+                  <span className="text-sm text-text-muted">Sí</span>
+                </label>
               ) : (
                 <input
                   type={campo.type === "number" ? "number" : "text"}

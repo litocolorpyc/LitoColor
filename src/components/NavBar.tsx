@@ -17,9 +17,9 @@ export async function NavBar() {
             <Link href="/registro" className="hover:text-paper">Registrar tiempo</Link>
             {sesion?.esAdmin && (
               <>
-                <Link href="/ordenes" className="hover:text-paper">Órdenes</Link>
+                <Link href="/ordenes" className="hover:text-paper">Órdenes (crear / avance)</Link>
                 <Link href="/dashboard" className="hover:text-paper">Tableros</Link>
-                <Link href="/catalogos" className="hover:text-paper">Catálogos</Link>
+                <Link href="/catalogos" className="hover:text-paper">Catálogos (maestros)</Link>
               </>
             )}
           </nav>

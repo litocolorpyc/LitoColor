@@ -12,8 +12,12 @@ function configOConError(slug: string) {
 }
 
 function valoresDesdeFormulario(formData: FormData, config: ReturnType<typeof configOConError>) {
-  const valores: Record<string, string | number | null> = {};
+  const valores: Record<string, string | number | boolean | null> = {};
   for (const campo of config.campos) {
+    if (campo.type === "boolean") {
+      valores[campo.key] = formData.get(campo.key) === "on";
+      continue;
+    }
     const raw = formData.get(campo.key);
     if (raw === null || raw === "") {
       valores[campo.key] = null;

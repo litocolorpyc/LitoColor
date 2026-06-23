@@ -5,9 +5,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { setSesion } from "@/lib/auth/sesion";
 
 // Acceso liviano, sin contraseña: el operario solo selecciona su nombre.
-// Pensado para tablets/equipos compartidos dentro de la planta. El campo
-// `cargo` decide si ve además el panel de administración.
-const CARGOS_ADMIN = ["Administrador", "Jefe de Producción", "Producción"];
+// Quién ve además el panel de administración (Órdenes, Tableros,
+// Catálogos) lo decide el campo `operarios.es_admin`, editable desde
+// Catálogos → Operarios. Ya no se adivina a partir del texto de `cargo`.
 
 export async function iniciarSesion(formData: FormData) {
   const operarioId = String(formData.get("operario_id") ?? "");
@@ -19,7 +19,7 @@ export async function iniciarSesion(formData: FormData) {
   const supabase = supabaseAdmin();
   const { data: operario, error } = await supabase
     .from("operarios")
-    .select("id, nombre, cargo, activo")
+    .select("id, nombre, es_admin, activo")
     .eq("id", operarioId)
     .single();
 
@@ -30,7 +30,7 @@ export async function iniciarSesion(formData: FormData) {
   await setSesion({
     operarioId: operario!.id,
     nombre: operario!.nombre,
-    esAdmin: CARGOS_ADMIN.includes(operario!.cargo ?? ""),
+    esAdmin: Boolean(operario!.es_admin),
   });
 
   redirect("/registro");

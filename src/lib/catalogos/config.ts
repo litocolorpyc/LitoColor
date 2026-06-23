@@ -1,7 +1,7 @@
 export type CampoConfig = {
   key: string;
   label: string;
-  type: "text" | "number" | "fk";
+  type: "text" | "number" | "fk" | "boolean";
   fkTabla?: string;       // tabla referenciada (si type === 'fk')
   fkEtiqueta?: string;    // columna a mostrar como etiqueta de la fk
   requerido?: boolean;
@@ -67,6 +67,7 @@ export const CATALOGOS: Record<string, CatalogoConfig> = {
       { key: "nombre", label: "Nombre", type: "text", requerido: true },
       { key: "cargo", label: "Cargo", type: "text" },
       { key: "valor_hora", label: "Valor/hora", type: "number", requerido: true },
+      { key: "es_admin", label: "Administrador (ve Órdenes/Tableros/Catálogos)", type: "boolean" },
     ],
   },
   papeles: {
