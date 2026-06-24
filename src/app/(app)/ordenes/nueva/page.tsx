@@ -1,3 +1,4 @@
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { crearOrden } from "../actions";
 
 export default async function NuevaOrdenPage({
@@ -7,6 +8,12 @@ export default async function NuevaOrdenPage({
 }) {
   const { error } = await searchParams;
   const hoy = new Date().toISOString().slice(0, 10);
+  const supabase = supabaseAdmin();
+  const { data: tiposProducto } = await supabase
+    .from("tipos_producto")
+    .select("id, nombre")
+    .eq("activo", true)
+    .order("nombre");
 
   return (
     <div className="max-w-lg">
@@ -36,6 +43,21 @@ export default async function NuevaOrdenPage({
             className="input-field w-full"
             placeholder="Nombre del cliente"
           />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Tipo de producto (opcional)</label>
+          <select name="tipo_producto_id" className="input-field w-full" defaultValue="">
+            <option value="">— Sin clasificar —</option>
+            {tiposProducto?.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nombre}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-text-muted mt-1">
+            Si eliges uno, en la orden podrás generar sus piezas de un clic. Se administran en
+            Catálogos → Tipos de producto.
+          </p>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">Fecha</label>

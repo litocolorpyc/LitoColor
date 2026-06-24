@@ -30,17 +30,57 @@ export async function buscarSubordenes(query: string) {
   return data ?? [];
 }
 
-export async function crearRegistro(formData: FormData) {
+// Inicia una tarea: queda guardada en la base de datos de inmediato,
+// con hora_fin en null. Por eso sobrevive a que se cierre el navegador
+// y permite que un mismo operario tenga varias tareas corriendo a la
+// vez (cada una se finaliza por separado).
+export async function iniciarTarea(formData: FormData) {
   const sesion = await getSesion();
   if (!sesion) redirect("/login");
 
   const supabase = supabaseAdmin();
 
-  const horaInicioIso = String(formData.get("hora_inicio_iso") || "");
-  const horaFinIso = String(formData.get("hora_fin_iso") || "");
-  const actividadId = String(formData.get("actividad_id"));
+  const fecha = String(formData.get("fecha") || new Date().toISOString().slice(0, 10));
+  const actividadId = String(formData.get("actividad_id") || "");
   const subordenId = String(formData.get("suborden_id") || "") || null;
   const maquinaId = String(formData.get("maquina_id") || "") || null;
+
+  if (!actividadId) {
+    redirect("/registro?error=Selecciona+la+actividad+antes+de+iniciar");
+  }
+
+  const { error } = await supabase.from("registros_produccion").insert({
+    fecha,
+    operario_id: sesion!.operarioId,
+    suborden_id: subordenId,
+    actividad_id: actividadId,
+    maquina_id: maquinaId,
+    hora_inicio: new Date().toISOString(),
+    hora_fin: null,
+  });
+
+  if (error) {
+    console.error(error);
+    redirect(`/registro?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/registro");
+  redirect("/registro?iniciado=1");
+}
+
+// Finaliza una tarea ya iniciada: completa hora_fin y los datos que
+// solo se conocen al terminar (cantidad, reproceso, materia prima...).
+export async function finalizarTarea(formData: FormData) {
+  const sesion = await getSesion();
+  if (!sesion) redirect("/login");
+
+  const supabase = supabaseAdmin();
+  const registroId = String(formData.get("registro_id") || "");
+
+  if (!registroId) {
+    redirect("/registro?error=No+se+encontró+la+tarea+a+finalizar");
+  }
+
   const cantidadTexto = String(formData.get("cantidad_producida_texto") || "");
   const cantidadNum = formData.get("cantidad_producida_num");
   const reproceso = formData.get("reproceso") === "si";
@@ -51,32 +91,22 @@ export async function crearRegistro(formData: FormData) {
   const cantidadDespachada = formData.get("cantidad_despachada");
   const cantidadInventario = formData.get("cantidad_inventario");
 
-  if (!horaInicioIso || !horaFinIso || !actividadId) {
-    redirect(
-      "/registro?error=Falta+marcar+Iniciar%2FFinalizar+o+seleccionar+la+actividad"
-    );
-  }
-
-  const fecha = horaInicioIso.slice(0, 10);
-
-  const { error } = await supabase.from("registros_produccion").insert({
-    fecha,
-    operario_id: sesion!.operarioId,
-    suborden_id: subordenId,
-    actividad_id: actividadId,
-    maquina_id: maquinaId,
-    hora_inicio: horaInicioIso,
-    hora_fin: horaFinIso,
-    cantidad_producida_texto: cantidadTexto || null,
-    cantidad_producida_num: cantidadNum ? Number(cantidadNum) : null,
-    reproceso,
-    comentario: comentario || null,
-    materia_prima: materiaPrima || null,
-    consumo_materia_prima: consumoMateriaPrima || null,
-    remision: remision || null,
-    cantidad_despachada: cantidadDespachada ? Number(cantidadDespachada) : null,
-    cantidad_inventario: cantidadInventario ? Number(cantidadInventario) : null,
-  });
+  const { error } = await supabase
+    .from("registros_produccion")
+    .update({
+      hora_fin: new Date().toISOString(),
+      cantidad_producida_texto: cantidadTexto || null,
+      cantidad_producida_num: cantidadNum ? Number(cantidadNum) : null,
+      reproceso,
+      comentario: comentario || null,
+      materia_prima: materiaPrima || null,
+      consumo_materia_prima: consumoMateriaPrima || null,
+      remision: remision || null,
+      cantidad_despachada: cantidadDespachada ? Number(cantidadDespachada) : null,
+      cantidad_inventario: cantidadInventario ? Number(cantidadInventario) : null,
+    })
+    .eq("id", registroId)
+    .eq("operario_id", sesion!.operarioId); // nadie finaliza tareas de otro operario
 
   if (error) {
     console.error(error);
@@ -85,4 +115,25 @@ export async function crearRegistro(formData: FormData) {
 
   revalidatePath("/registro");
   redirect("/registro?ok=1");
+}
+
+// Por si el operario se equivocó al iniciar (actividad/OPP incorrectos):
+// permite cancelar una tarea iniciada sin que quede como un registro
+// finalizado con datos vacíos.
+export async function cancelarTarea(formData: FormData) {
+  const sesion = await getSesion();
+  if (!sesion) redirect("/login");
+
+  const supabase = supabaseAdmin();
+  const registroId = String(formData.get("registro_id") || "");
+
+  await supabase
+    .from("registros_produccion")
+    .delete()
+    .eq("id", registroId)
+    .eq("operario_id", sesion!.operarioId)
+    .is("hora_fin", null);
+
+  revalidatePath("/registro");
+  redirect("/registro?cancelado=1");
 }
