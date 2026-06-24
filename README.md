@@ -25,10 +25,15 @@ Construido con **Next.js 16 (App Router) + Supabase (Postgres) + Vercel**.
    - `0002_rls.sql` — seguridad por fila.
    - `0003_acabados_y_cierre_orden.sql` — tipos de acabado + función de cierre de orden.
    - `0004_rls_acabados.sql` — seguridad de las tablas nuevas.
+   - `0005_es_admin.sql` — bandera de administrador en operarios (reemplaza la lógica anterior por `cargo`).
+   - `0006_buscador_solo_vivas.sql` — el buscador de OPP solo muestra órdenes no cerradas.
+   - `0007_tipos_producto.sql` — catálogo de Tipos de Producto, sus piezas y campos personalizados.
+   - `0008_rls_tipos_producto.sql` — seguridad de esas tablas nuevas.
 3. Ejecuta, en este orden, los archivos de `supabase/seed/` (datos reales extraídos de tu Excel actual):
    - `0001_catalogos.sql` — áreas, actividades, máquinas, operarios, papeles.
    - `0002_ordenes_historicas.sql` — clientes y las 170 órdenes / 458 subórdenes históricas (solo cliente/producto; la ficha técnica detallada de cada una se completa desde la app si la orden sigue activa).
    - `0003_tipos_acabado.sql` — lista inicial de acabados (editable luego desde *Catálogos*).
+   - `0004_tipos_producto.sql` — 3 tipos de producto de ejemplo (Cuaderno argollado, Caja plegadiza, Afiche) con sus piezas.
 
 > Estos seeds se generaron automáticamente desde tus archivos `Reporte_Diario_de_Producción.xlsx` (hojas `Desplegables` y `Pedidos`). Se normalizaron 3 variantes de nombre de cliente con espacios/mayúsculas inconsistentes (ej. "EcoMasilla" / "Eco Masilla").
 
