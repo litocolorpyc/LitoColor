@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { crearSuborden, cerrarOrden, generarPiezasDesdeTemplate } from "../actions";
+import {
+  crearSuborden,
+  actualizarSuborden,
+  actualizarOrden,
+  cerrarOrden,
+  generarPiezasDesdeTemplate,
+} from "../actions";
 
 function money(v: number | null | undefined) {
   if (v === null || v === undefined) return "—";
@@ -12,23 +18,23 @@ export default async function DetalleOrdenPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; editar?: string }>;
 }) {
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, editar } = await searchParams;
   const supabase = supabaseAdmin();
 
   const { data: orden } = await supabase
     .from("ordenes")
     .select(
-      "id, numero_orden, fecha, estado, costo_mano_obra, costo_maquina, costo_total, fecha_cierre, tipo_producto_id, clientes(nombre), tipos_producto(nombre)"
+      "id, numero_orden, fecha, estado, descripcion_general, costo_mano_obra, costo_maquina, costo_total, fecha_cierre, tipo_producto_id, clientes(nombre), tipos_producto(nombre)"
     )
     .eq("id", id)
     .single();
 
   const { data: subordenes } = await supabase
     .from("subordenes")
-    .select("*, papeles(nombre), subordenes_acabados(tipos_acabado(nombre))")
+    .select("*, papeles(nombre), subordenes_acabados(tipo_acabado_id, tipos_acabado(nombre))")
     .eq("orden_id", id)
     .order("numero_suborden");
 
@@ -43,6 +49,12 @@ export default async function DetalleOrdenPage({
     .select("id, codigo, nombre")
     .eq("activo", true)
     .order("codigo");
+
+  const { data: tiposProducto } = await supabase
+    .from("tipos_producto")
+    .select("id, nombre")
+    .eq("activo", true)
+    .order("nombre");
 
   const { data: resumen } = await supabase
     .from("v_resumen_por_orden_area")
@@ -75,8 +87,20 @@ export default async function DetalleOrdenPage({
         .order("orden_sugerido")
     : { data: [] };
 
+  const subordenEnEdicion = editar ? subordenes?.find((s) => s.id === editar) : null;
+  const acabadosSeleccionados = new Set(
+    (
+      (subordenEnEdicion?.subordenes_acabados as { tipo_acabado_id: string }[] | undefined) ?? []
+    ).map((sa) => sa.tipo_acabado_id)
+  );
+  const camposActuales = (subordenEnEdicion?.campos_personalizados ?? {}) as Record<string, unknown>;
+
   return (
     <div className="space-y-8">
+      <Link href="/ordenes" className="text-sm text-text-muted hover:underline">
+        ← Volver a Órdenes
+      </Link>
+
       <div className="flex items-start justify-between">
         <div>
           <p className="codigo text-text-muted text-sm">ORDEN</p>
@@ -97,6 +121,56 @@ export default async function DetalleOrdenPage({
       </div>
 
       {error && <div className="card p-3 border-danger text-danger bg-red-50">{error}</div>}
+
+      {!cerrada && (
+        <details className="card p-4">
+          <summary className="cursor-pointer font-medium">✎ Editar datos de la orden</summary>
+          <form action={actualizarOrden} className="mt-4 space-y-4 max-w-md">
+            <input type="hidden" name="orden_id" value={orden.id} />
+            <div>
+              <label className="block text-sm font-medium mb-1">Número de orden</label>
+              <input
+                type="number"
+                name="numero_orden"
+                defaultValue={orden.numero_orden}
+                required
+                className="input-field w-full codigo"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Cliente</label>
+              <input type="text" name="cliente" defaultValue={cliente ?? ""} required className="input-field w-full" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Tipo de producto</label>
+              <select name="tipo_producto_id" className="input-field w-full" defaultValue={orden.tipo_producto_id ?? ""}>
+                <option value="">— Sin clasificar —</option>
+                {tiposProducto?.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Fecha</label>
+              <input type="date" name="fecha" defaultValue={orden.fecha} className="input-field w-full" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Descripción general</label>
+              <textarea
+                name="descripcion_general"
+                rows={3}
+                defaultValue={orden.descripcion_general ?? ""}
+                className="input-field w-full"
+              />
+            </div>
+            <button type="submit" className="btn-accent px-5 py-2">
+              Guardar cambios
+            </button>
+          </form>
+        </details>
+      )}
 
       {cerrada && (
         <section className="card p-5">
@@ -147,6 +221,7 @@ export default async function DetalleOrdenPage({
                 <th className="px-3 py-2">Papel</th>
                 <th className="px-3 py-2">Acabados</th>
                 <th className="px-3 py-2">Estado</th>
+                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -162,7 +237,7 @@ export default async function DetalleOrdenPage({
                   .map(([k, v]) => `${k.replaceAll("_", " ")}: ${v}`)
                   .join(", ");
                 return (
-                  <tr key={s.id} className="border-b border-line last:border-0">
+                  <tr key={s.id} className={`border-b border-line last:border-0 ${editar === s.id ? "bg-accent-soft" : ""}`}>
                     <td className="px-3 py-2 codigo">{s.opp}</td>
                     <td className="px-3 py-2">
                       {s.producto || s.pieza}
@@ -177,12 +252,19 @@ export default async function DetalleOrdenPage({
                       {notas ? ` · ${notas}` : ""}
                     </td>
                     <td className="px-3 py-2">{s.estado}</td>
+                    <td className="px-3 py-2 text-right">
+                      {!cerrada && (
+                        <Link href={`/ordenes/${orden.id}?editar=${s.id}`} className="text-accent text-sm underline">
+                          Editar
+                        </Link>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
               {!subordenes?.length && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-4 text-text-muted text-center">
+                  <td colSpan={7} className="px-3 py-4 text-text-muted text-center">
                     Aún no hay subórdenes. Agrega la primera abajo
                     {orden.tipo_producto_id && !!piezasTemplate?.length
                       ? ", o genera todas las de la plantilla con el botón de arriba."
@@ -195,11 +277,17 @@ export default async function DetalleOrdenPage({
         </div>
 
         {!cerrada && (
-          <details className="card p-4">
-            <summary className="cursor-pointer font-medium">+ Agregar suborden (OPP)</summary>
-            <form action={crearSuborden} className="mt-4 space-y-5">
+          <details className="card p-4" open={!!subordenEnEdicion}>
+            <summary className="cursor-pointer font-medium">
+              {subordenEnEdicion ? `✎ Editando ${subordenEnEdicion.opp}` : "+ Agregar suborden (OPP)"}
+            </summary>
+            <form
+              action={subordenEnEdicion ? actualizarSuborden : crearSuborden}
+              className="mt-4 space-y-5"
+            >
               <input type="hidden" name="orden_id" value={orden.id} />
               <input type="hidden" name="numero_orden" value={orden.numero_orden} />
+              {subordenEnEdicion && <input type="hidden" name="suborden_id" value={subordenEnEdicion.id} />}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -207,20 +295,26 @@ export default async function DetalleOrdenPage({
                   <input
                     type="number"
                     name="numero_suborden"
-                    defaultValue={siguienteNumero}
+                    defaultValue={subordenEnEdicion?.numero_suborden ?? siguienteNumero}
                     required
                     className="input-field w-full codigo"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Producto / Trabajo</label>
-                  <input type="text" name="producto" className="input-field w-full" />
+                  <input
+                    type="text"
+                    name="producto"
+                    defaultValue={subordenEnEdicion?.producto ?? ""}
+                    className="input-field w-full"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Pieza</label>
                   <input
                     type="text"
                     name="pieza"
+                    defaultValue={subordenEnEdicion?.pieza ?? ""}
                     placeholder="Carátula, Guarda, Interiores…"
                     className="input-field w-full"
                   />
@@ -228,15 +322,27 @@ export default async function DetalleOrdenPage({
                 <div />
                 <div>
                   <label className="block text-sm font-medium mb-1">Cantidad solicitada</label>
-                  <input type="number" step="0.01" name="cantidad_solicitada" className="input-field w-full" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="cantidad_solicitada"
+                    defaultValue={subordenEnEdicion?.cantidad_solicitada ?? ""}
+                    className="input-field w-full"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Cantidad programada</label>
-                  <input type="number" step="0.01" name="cantidad_programada" className="input-field w-full" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="cantidad_programada"
+                    defaultValue={subordenEnEdicion?.cantidad_programada ?? ""}
+                    className="input-field w-full"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Papel</label>
-                  <select name="papel_id" className="input-field w-full" defaultValue="">
+                  <select name="papel_id" className="input-field w-full" defaultValue={subordenEnEdicion?.papel_id ?? ""}>
                     <option value="">— Sin definir —</option>
                     {papeles?.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -248,43 +354,89 @@ export default async function DetalleOrdenPage({
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-sm font-medium mb-1">Tintas tiro</label>
-                    <input type="number" name="tintas_tiro" className="input-field w-full" />
+                    <input
+                      type="number"
+                      name="tintas_tiro"
+                      defaultValue={subordenEnEdicion?.tintas_tiro ?? ""}
+                      className="input-field w-full"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Tintas retiro</label>
-                    <input type="number" name="tintas_retiro" className="input-field w-full" />
+                    <input
+                      type="number"
+                      name="tintas_retiro"
+                      defaultValue={subordenEnEdicion?.tintas_retiro ?? ""}
+                      className="input-field w-full"
+                    />
                   </div>
                 </div>
               </div>
 
-              <details>
+              <details open={!!subordenEnEdicion}>
                 <summary className="cursor-pointer text-sm font-medium text-accent">
                   + Imposición y corte (solo si aplica: tamaño de pliego, montajes…)
                 </summary>
                 <div className="grid grid-cols-2 gap-4 mt-3">
                   <div>
                     <label className="block text-sm font-medium mb-1">Ancho (cm)</label>
-                    <input type="number" step="0.1" name="ancho_cm" className="input-field w-full" />
+                    <input
+                      type="number"
+                      step="0.1"
+                      name="ancho_cm"
+                      defaultValue={subordenEnEdicion?.ancho_cm ?? ""}
+                      className="input-field w-full"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Alto (cm)</label>
-                    <input type="number" step="0.1" name="alto_cm" className="input-field w-full" />
+                    <input
+                      type="number"
+                      step="0.1"
+                      name="alto_cm"
+                      defaultValue={subordenEnEdicion?.alto_cm ?? ""}
+                      className="input-field w-full"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">CTP</label>
-                    <input type="text" name="ctp" placeholder="Convencional…" className="input-field w-full" />
+                    <input
+                      type="text"
+                      name="ctp"
+                      defaultValue={subordenEnEdicion?.ctp ?? ""}
+                      placeholder="Convencional…"
+                      className="input-field w-full"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Unidades por montaje</label>
-                    <input type="number" step="0.01" name="unidades_por_montaje" className="input-field w-full" />
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="unidades_por_montaje"
+                      defaultValue={subordenEnEdicion?.unidades_por_montaje ?? ""}
+                      className="input-field w-full"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Tamaños por pliego</label>
-                    <input type="number" step="0.01" name="tamanos_por_pliego" className="input-field w-full" />
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="tamanos_por_pliego"
+                      defaultValue={subordenEnEdicion?.tamanos_por_pliego ?? ""}
+                      className="input-field w-full"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Pliegos</label>
-                    <input type="number" step="0.01" name="pliegos" className="input-field w-full" />
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="pliegos"
+                      defaultValue={subordenEnEdicion?.pliegos ?? ""}
+                      className="input-field w-full"
+                    />
                   </div>
                 </div>
               </details>
@@ -300,7 +452,12 @@ export default async function DetalleOrdenPage({
                         <label className="block text-sm font-medium mb-1">{c.etiqueta}</label>
                         {c.tipo_dato === "booleano" ? (
                           <label className="flex items-center gap-2">
-                            <input type="checkbox" name={`campo__${c.clave}`} value="true" />
+                            <input
+                              type="checkbox"
+                              name={`campo__${c.clave}`}
+                              value="true"
+                              defaultChecked={Boolean(camposActuales[c.clave])}
+                            />
                             <span className="text-sm text-text-muted">Sí</span>
                           </label>
                         ) : (
@@ -308,6 +465,7 @@ export default async function DetalleOrdenPage({
                             type={c.tipo_dato === "numero" ? "number" : "text"}
                             step={c.tipo_dato === "numero" ? "0.01" : undefined}
                             name={`campo__${c.clave}`}
+                            defaultValue={(camposActuales[c.clave] as string) ?? ""}
                             className="input-field w-full"
                           />
                         )}
@@ -327,7 +485,13 @@ export default async function DetalleOrdenPage({
                 <div className="flex flex-wrap gap-4">
                   {tiposAcabado?.map((t) => (
                     <label key={t.id} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" name="tipos_acabado_id" value={t.id} /> {t.nombre}
+                      <input
+                        type="checkbox"
+                        name="tipos_acabado_id"
+                        value={t.id}
+                        defaultChecked={acabadosSeleccionados.has(t.id)}
+                      />{" "}
+                      {t.nombre}
                     </label>
                   ))}
                   {!tiposAcabado?.length && (
@@ -340,13 +504,21 @@ export default async function DetalleOrdenPage({
                   type="text"
                   name="notas_acabados"
                   placeholder="Notas adicionales sobre acabados (texto libre)"
+                  defaultValue={(subordenEnEdicion?.acabados as { notas?: string } | null)?.notas ?? ""}
                   className="input-field w-full mt-2"
                 />
               </div>
 
-              <button type="submit" className="btn-accent px-5 py-2">
-                Guardar suborden
-              </button>
+              <div className="flex gap-3">
+                <button type="submit" className="btn-accent px-5 py-2">
+                  {subordenEnEdicion ? "Guardar cambios" : "Guardar suborden"}
+                </button>
+                {subordenEnEdicion && (
+                  <Link href={`/ordenes/${orden.id}`} className="px-5 py-2 text-text-muted">
+                    Cancelar
+                  </Link>
+                )}
+              </div>
             </form>
           </details>
         )}
