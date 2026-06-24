@@ -9,9 +9,9 @@ select
   s.producto,
   s.pieza,
   o.numero_orden,
-  o.estado as estado_orden,
   c.nombre as cliente,
-  s.estado
+  s.estado,
+  o.estado as estado_orden
 from subordenes s
 join ordenes o on o.id = s.orden_id
 left join clientes c on c.id = o.cliente_id
